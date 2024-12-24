@@ -1,7 +1,7 @@
 import pandas as pd
-from account import Account
-from service import Service
-from accrual import  Accrual
+from models.account import Account
+from models.service import Service
+from models.charge import Charge
 
 class ServiceManager:
     def __init__(self):

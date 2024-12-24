@@ -1,103 +1,40 @@
-from street import Street
-from account import Account
-from service import Service
-from accrual import Accrual
-from openpyxl import Workbook
-from PyQt6.QtWidgets import QApplication, QWidget, QMessageBox
-from design import *
-from residents_db import *
+from service_manager import ServiceManager
+from models.account import Account
+from models.service import Service
+from models.charge import Charge
 
+def main():
+    # Создаем экземпляр ServiceManager для управления
+    manager = ServiceManager()
 
-class MainApp(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.ui = Ui_Form()
-        self.ui.setupUi(self)
+    # Создаем услуги и их тариф
+    service1 = Service(1, "Водоснабжение", 100)
+    service2 = Service(2, "Электроснабжение", 150)
 
-        self.conn = sqlite3.connect("residents.db")
-        self.cursor = self.conn.cursor()
+    manager.add_service(service1)
+    manager.add_service(service2)
 
-        self.db = DataBase()
-        self.db.create_tables()
-        self.db.close_db()
-        self.load_services()
-        self.ui.save_pushButton.clicked.connect(self.add_accrual)
+    # Создаем лицевые счета
+    account1 = Account(1, "001", 1, "12", "", "45", "Иванов Иван Иванович")
+    account2 = Account(2, "002", 1, "12", "", "46", "Петров Петр Петрович")
 
-    def load_services(self):
-        """Load services into the combo box."""
-        self.cursor.execute("SELECT Name ||'-'|| Tariff FROM Services")
-        services = self.cursor.fetchall()
-        for service in services:
-            self.ui.services_comboBox.addItem(service[0])
+    manager.add_account(account1)
+    manager.add_account(account2)
 
-    def add_accrual(self):
-        """Add an accrual to the database."""
-        street = self.ui.street_lineEdit.text()
-        acc_number = self.ui.acc_num_lineEdit.text()
-        service = self.ui.services_comboBox.currentText()
-        quantity = self.ui.accrual_lineEdit.text()
+    # Создаем начисления
+    charge1 = Charge(1, 1, 1, 5)  # 5 кубов воды
+    charge2 = Charge(2, 1, 2, 10)  # 10 кВт электроэнергии
 
-        if not (street and acc_number and service and quantity):
-            QMessageBox.warning(self, "Ошибка", "Заполните все поля!")
-            return
+    manager.add_charge(charge1)
+    manager.add_charge(charge2)
 
-        try:
-            quantity = float(quantity)
-            self.cursor.execute(
-                "INSERT INTO Accruals (AccountCode, ServiceCode, Quantity) "
-                "SELECT a.AccountCode, s.ServiceCode, ? FROM Accounts a "
-                "JOIN Services s ON s.Name = ? WHERE a.AccountNumber = ?",
-                (quantity, service, acc_number),
-            )
-            self.conn.commit()
-            QMessageBox.information(self, "Успех", "Начисление добавлено!")
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Ошибка: {e}")
-
-def generate_payment_notice(account, accruals):
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Payment Notice"
-
-    ws.append(["Account Number", "Full Name", "Service", "Quantity", "Amount"])
-    for accrual in accruals:
-        ws.append([
-            account.number,
-            account.fio,
-            accrual.service.name,
-            accrual.quantity,
-            accrual.calc_amount()
-        ])
-
-    filename = f"Payment_Notice_{account.number}.xlsx"
-    wb.save(filename)
-    print(f"Payment notice saved as {filename}")
-
-def demonstrate_classes():
-    # Example data
-    street = Street(1, "Main Street")
-    account = Account(101, "123456789", street, "10", "A", "5", "John Doe")
-    service1 = Service(201, "Electricity", 5.5)
-    service2 = Service(202, "Water", 2.0)
-
-    accrual1 = Accrual(301, account, service1, 100)
-    accrual2 = Accrual(302, account, service2, 50)
-
-    accruals = [accrual1, accrual2]
-
-    print("Demonstrating class interactions:")
-    print(account)
-    for accrual in accruals:
-        print(accrual)
-
-    generate_payment_notice(account, accruals)
+    invoice_df = manager.generate_invoice("001") # Генерация извещения для лицевого счета 001
+    if invoice_df is not None:
+        # Сохранение извещения в Excel
+        manager.save_invoice_to_excel(invoice_df, "invoice_001.xlsx")
+        print("Извещение успешно сохранено в invoice_001.xlsx")
+    else:
+        print("Счет не найден")
 
 if __name__ == "__main__":
-    demonstrate_classes()
-    import sys
-
-    app = QApplication(sys.argv)
-    window = MainApp()
-    window.show()
-    sys.exit(app.exec())
-
+    main()
